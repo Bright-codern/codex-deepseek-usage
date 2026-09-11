@@ -1,0 +1,8 @@
+﻿{
+  "debugPort": 9229,
+  "refreshSeconds": 360,
+  "pollSeconds": 2,
+  "apiKey": "",
+  "platformToken": "",
+  "uiScript": ""
+}
