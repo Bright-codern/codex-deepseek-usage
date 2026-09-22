@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         DeepSeek 消耗
 // @description  在 Codex 顶部菜单栏加一个「消耗」按钮，显示 DeepSeek 充值余额与今日消费
-// @version      1.0.8
+// @version      1.0.9
 // @match        app://-/*
 // @grant        none
 // ==/UserScript==
@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.0.8';
+  var VERSION = '1.0.9';
   if (window.__dsUsageUIVersion === VERSION) return;
   window.__dsUsageUIVersion = VERSION;
 
@@ -22,6 +22,8 @@
   var PANEL_ID = 'ds-usage-panel';
   var STATE = { open: false, panel: null, btn: null, hintTimer: null };
   var DATA = window.__DSUsage || null;
+  var TEXT_PRIMARY = 'var(--color-token-text-primary, #1a1c1f)';
+  var TEXT_SECONDARY = 'color-mix(in oklab, var(--color-token-text-primary, #1a1c1f) 75%, transparent)';
 
   function money(value, symbol) {
     if (value === null || value === undefined || value === '') return '—';
@@ -50,7 +52,7 @@
 
     var l = document.createElement('span');
     l.textContent = label;
-    l.style.cssText = 'color:var(--color-token-text-secondary, rgba(0,0,0,.55));flex:0 0 auto;font-family:inherit;font-size:12px;font-weight:400;line-height:18px;';
+    l.style.cssText = 'color:' + TEXT_PRIMARY + ';flex:0 0 auto;font-family:inherit;font-size:12px;font-weight:400;line-height:18px;';
 
     var v = document.createElement('span');
     v.textContent = value;
@@ -105,7 +107,7 @@
 
     var stamp = document.createElement('span');
     stamp.dataset.dsPart = 'stamp';
-    stamp.style.cssText = 'color:var(--color-token-text-secondary, rgba(0,0,0,.55));font-family:inherit;font-size:12px;font-weight:400;line-height:18px;';
+    stamp.style.cssText = 'color:' + TEXT_SECONDARY + ';font-family:inherit;font-size:12px;font-weight:400;line-height:18px;';
 
     var refresh = document.createElement('button');
     refresh.type = 'button';
@@ -155,7 +157,7 @@
 
     if (!data) {
       body.textContent = '等待助手进程…';
-      body.style.color = 'var(--color-token-text-secondary, rgba(0,0,0,.55))';
+      body.style.color = TEXT_SECONDARY;
       stamp.textContent = '';
       return;
     }
@@ -164,7 +166,7 @@
 
     if (data.error && !data.ok) {
       body.textContent = '获取失败：' + data.error;
-      body.style.color = 'var(--color-token-text-secondary, rgba(0,0,0,.55))';
+      body.style.color = TEXT_SECONDARY;
       stamp.textContent = timeText(data.updatedAt);
       return;
     }
@@ -183,7 +185,7 @@
     if (src) {
       var note = document.createElement('div');
       note.textContent = '来源：' + src + (data.currency ? '（' + data.currency + '）' : '');
-      note.style.cssText = 'margin:0 4px;padding:0 16px 6px;font-family:inherit;font-size:12px;font-weight:400;line-height:18px;color:var(--color-token-text-secondary, rgba(0,0,0,.55));';
+      note.style.cssText = 'margin:0 4px;padding:0 16px 6px;font-family:inherit;font-size:12px;font-weight:400;line-height:18px;color:' + TEXT_SECONDARY + ';';
       body.append(note);
     }
 
