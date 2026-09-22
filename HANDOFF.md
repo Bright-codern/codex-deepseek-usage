@@ -1,8 +1,9 @@
 # Codex++ DeepSeek 消耗：维护与交接文档
 
-> 交接状态：当前版本 `1.0.12`（今日消费只取精确值，凭证只来自 Codex 内置浏览器）；仓库工作区干净，`main` 与 GitHub 远端同步。  
+> 交接状态：功能定稿于 `v1.0.12`（提交 `b084539`），已在本机安装并实测通过；仓库工作区干净，`main` 与 GitHub 远端同步。  
 > 仓库：<https://github.com/Bright-codern/codex-deepseek-usage>  
-> 平台：Windows 10 / 11。当前仅在 Codex 桌面端 + Codex++ 的组合上验证；「今日消费」的登录态只从 Codex 内置浏览器读取。
+> 平台：Windows 10 / 11。只在 Codex 桌面端 + Codex++ 的组合上验证过；「今日消费」的登录态只从 Codex 内置浏览器读取。  
+> 三条口径：余额走官方接口（用 `~/.codex/auth.json` 里的 key）；今日消费走网页版内部接口（登录态从 Codex 内置浏览器本地存储里读）；两样都取不到时只显示 `—`，不做任何估算。
 
 ## 1. 项目目标
 
@@ -84,6 +85,7 @@ Codex++ / Codex 启动
 | 启动器日志 | `%APPDATA%\Codex++\deepseek-usage\launcher.log` |
 | Codex 配置 | `%USERPROFILE%\.codex\config.toml` |
 | Codex++ 脚本清单 | `%APPDATA%\Codex++\user_scripts.json` |
+| 内置浏览器存储（`userToken` 来源） | `%APPDATA%\Codex\web\Codex\<profile>\Partitions\<partition>\Local Storage\leveldb` |
 
 本地配置、日志、备份和运行状态均已列入 `.gitignore`，不要提交。
 
@@ -184,6 +186,8 @@ Codex 当前的原生菜单由 React/Radix 管理。为了从卡片首次切入�
 
 ### 安装
 
+前置条件：Codex 桌面端和 Codex++ 已装好，并且在 **Codex 内置浏览器** 里登录过一次 DeepSeek 网页版（`https://platform.deepseek.com`）。没有这一步「今日消费」只会显示 `—`。
+
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
@@ -206,6 +210,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 4. 执行 `install.ps1`。
 5. 重启 Codex，让所有渲染窗口重新加载用户脚本。
 6. 验证卡片内容、菜单悬停、刷新和日志。
+7. 同步更新 `README.md` 的更新说明和本文档第 13 节的版本表。
 
 缺少第 1 步会导致助手持续认为页面版本过期并反复注入旧脚本，严重时可能让页面卡死。安装脚本已经会在升级时重启助手，但页面脚本版本号仍需手工维护。
 
@@ -252,6 +257,11 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 
 注意：直接热注入不同版本页面脚本时，旧版 `MutationObserver` 和新版可能互相覆盖。正式升级应使用 `install.ps1` 并重启 Codex，不要在旧页面里同时保留两个版本。
 
+两条实战经验：
+
+- 助手每 `2` 秒轮询一次调试端口，手工连 CDP 读页面时可能撞上 `NO-RESPONSE`。需要稳定读取时，先停掉 `deepseek-usage-helper` 进程（`Get-CimInstance Win32_Process` 过滤命令行），读完再执行 `install.ps1` 拉起。
+- 行尾与 BOM 约定：`deepseek-usage-panel.js`、`helper\deepseek-usage-helper.ps1` 在仓库里是 **LF + BOM**；`README.md`、`HANDOFF.md` 是 **CRLF 且无 BOM**。改文件时不要让编辑器顺手改行尾或增删 BOM，否则 `git diff` 会变成整文件重写。
+
 ## 11. 回归验证清单
 
 每次发布前至少检查：
@@ -265,6 +275,9 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 - 卡片只显示余额、今日消费、同步时间和刷新，不显示来源行。
 - 点击「刷新」后助手日志出现 `refresh requested from panel`。
 - 余额与网页版数据口径一致。
+- 助手日志出现 `platform token read from codex browser storage`，且没有读取 Chrome / Edge 的动作。
+- 「今日消费」与网页版 `platform.deepseek.com/usage` 选「今日」看到的数字一致。
+- 用调试端口推一条 `todaySpend: null` 的模拟 payload，卡片显示 `—` 加提示行（验证未登录文案）。
 - 网页版登录态失效时，「今日消费」显示 `—` 并提示重新登录（不再估算）。
 - 暗色主题和亮色主题均可正常显示。
 - `install.ps1` 和 `uninstall.ps1` 可重复执行。
@@ -277,7 +290,7 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 - 从 Codex 内置浏览器 LevelDB 读取 `userToken` 依赖当前的存储格式与 `userToken` 键名，Codex 或 DeepSeek 改版后可能失效；失效时卡片会显示 `—` 并提示重新登录。
 - 登录态只认 Codex 内置浏览器：用户在 Chrome / Edge 里的 DeepSeek 登录态不会生效。
 - 因为不做估算，未登录或登录态失效时「今日消费」没有数字可看；这是有意的取舍。
-- `mcp-launcher.ps1` 中的 MCP `serverInfo.version` 仍是 `1.1.0`，与 UI `1.0.11` 独立；如需统一版本体系，应另行整理。
+- `mcp-launcher.ps1` 中的 MCP `serverInfo.version` 仍是 `1.1.0`，与 UI `1.0.12` 独立；如需统一版本体系，应另行整理。
 - `mcp-launcher.ps1` 仍有未使用的 `BridgePath` 和注释遗留，不影响当前运行，但可以清理。
 - 当前只验证 Windows，未处理 macOS 路径、凭证存储和进程生命周期差异。
 
@@ -290,7 +303,7 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 | `e24a66b` | README 补充相对原版的更新说明。 |
 | `daff01e` | 修正卡片文字颜色，主色 `100%`、辅助色 `75%`。 |
 | `e0f9f29` | 移除来源说明行，更新截图，发布 `1.0.10`。 |
-| `v1.0.12` | 「今日消费」凭证只从 Codex 内置浏览器读取：移除 Chrome / Edge 扫描、`platformToken` 配置项和余额差值估算；安装时提示登录。 |
+| `b084539` / `v1.0.12` | 「今日消费」凭证只从 Codex 内置浏览器读取：移除 Chrome / Edge 扫描、`platformToken` 配置项和余额差值估算；安装时提示登录。 |
 
 ## 14. 后续维护建议
 
@@ -299,3 +312,11 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 3. 每次修改卡片样式后，对照原生菜单的实际计算样式，而不是只看截图猜颜色。
 4. Codex 升级后先验证菜单桥接，再验证取数。
 5. 每次发布同步更新 `README.md`、`HANDOFF.md` 和 `docs/screenshot.png`。
+
+## 15. 接手后的最短路径
+
+1. `git clone https://github.com/Bright-codern/codex-deepseek-usage.git`。
+2. 确认 Codex 桌面端与 Codex++ 可用，然后在 Codex 内置浏览器里登录 `https://platform.deepseek.com`。
+3. 执行 `install.ps1`，重启 Codex，点菜单栏「消耗」确认有数字。
+4. 手测一次取数：`powershell -NoProfile -ExecutionPolicy Bypass -File "$env:APPDATA\Codex++\deepseek-usage\deepseek-usage-helper.ps1" -Once`，检查 `todaySpendSource` 是否为 `platform`。
+5. 出问题时看两个日志：`helper.log`（取数与推送）、`launcher.log`（随 Codex 启停）。
