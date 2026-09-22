@@ -250,9 +250,14 @@ if (Test-Path $uiPath) {
   Write-Log "ui script not found: $uiPath"
 }
 
+$uiScriptVersion = '1.0.3'
+if ($uiSource -match '(?m)^//\s*@version\s+([^\s]+)') {
+  $uiScriptVersion = [string]$Matches[1]
+}
+
 $probeExpression = @"
 (function(){
-  if (window.__dsUsageUIVersion !== '1.0.3') {
+  if (window.__dsUsageUIVersion !== '$uiScriptVersion') {
 $uiSource
   }
   var refresh = window.__dsUsageRefreshFlag === true;

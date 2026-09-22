@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         DeepSeek 消耗
 // @description  在 Codex 顶部菜单栏加一个「消耗」按钮，显示 DeepSeek 充值余额与今日消费
-// @version      1.0.3
+// @version      1.0.8
 // @match        app://-/*
 // @grant        none
 // ==/UserScript==
@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.0.3';
+  var VERSION = '1.0.8';
   if (window.__dsUsageUIVersion === VERSION) return;
   window.__dsUsageUIVersion = VERSION;
 
@@ -46,15 +46,15 @@
 
   function row(label, value, extraClass) {
     var wrap = document.createElement('div');
-    wrap.style.cssText = 'display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:3px 0;';
+    wrap.style.cssText = 'display:flex;align-items:baseline;justify-content:space-between;gap:16px;min-height:28px;box-sizing:border-box;margin:0 4px;padding:5px 16px;';
 
     var l = document.createElement('span');
     l.textContent = label;
-    l.style.cssText = 'color:var(--color-token-text-secondary, rgba(0,0,0,.55));flex:0 0 auto;font-weight:400;font-family:inherit;';
+    l.style.cssText = 'color:var(--color-token-text-secondary, rgba(0,0,0,.55));flex:0 0 auto;font-family:inherit;font-size:12px;font-weight:400;line-height:18px;';
 
     var v = document.createElement('span');
     v.textContent = value;
-    v.style.cssText = 'font-variant-numeric:tabular-nums;text-align:right;font-weight:400;font-family:inherit;' + (extraClass || '');
+    v.style.cssText = 'font-variant-numeric:tabular-nums;text-align:right;font-family:inherit;font-size:12px;font-weight:400;line-height:18px;' + (extraClass || '');
 
     wrap.append(l, v);
     return wrap;
@@ -66,21 +66,25 @@
     panel.style.cssText = [
       'position:fixed',
       'z-index:2147483000',
-      'min-width:212px',
-      'padding:12px 14px 10px',
-      'border-radius:12px',
-      'border:1px solid var(--color-token-border, rgba(0,0,0,.08))',
-      'background:var(--color-token-main-surface-primary, #fff)',
+      'width:220px',
+      'min-width:220px',
+      'box-sizing:border-box',
+      'padding:4px 0',
+      'border:0',
+      'border-radius:7.5px',
+      'background:var(--color-codex-application-menu, #f8f8f9)',
       'color:var(--color-token-text-primary, #1a1c1f)',
-      'box-shadow:0 10px 30px rgba(0,0,0,.18)',
-      'font-size:13px',
-      'line-height:1.55',
+      'box-shadow:0 4px 12px rgba(0,0,0,.42)',
+      'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+      'font-size:12px',
+      'font-weight:400',
+      'line-height:18px',
       'user-select:none'
     ].join(';');
 
     var title = document.createElement('div');
     title.textContent = 'DeepSeek 消耗';
-    title.style.cssText = 'font-weight:600;font-size:13px;margin-bottom:8px;';
+    title.style.cssText = 'font-size:12px;font-weight:600;line-height:18px;margin:0 4px;padding:5px 16px;';
 
     var body = document.createElement('div');
     body.dataset.dsPart = 'body';
@@ -92,14 +96,16 @@
       'align-items:center',
       'justify-content:space-between',
       'gap:10px',
-      'margin-top:10px',
-      'padding-top:8px',
+      'min-height:31px',
+      'box-sizing:border-box',
+      'margin:4px 4px 0',
+      'padding:7px 12px 3px',
       'border-top:1px solid var(--color-token-border, rgba(0,0,0,.08))'
     ].join(';');
 
     var stamp = document.createElement('span');
     stamp.dataset.dsPart = 'stamp';
-    stamp.style.cssText = 'color:var(--color-token-text-secondary, rgba(0,0,0,.55));font-size:12px;font-weight:400;font-family:inherit;';
+    stamp.style.cssText = 'color:var(--color-token-text-secondary, rgba(0,0,0,.55));font-family:inherit;font-size:12px;font-weight:400;line-height:18px;';
 
     var refresh = document.createElement('button');
     refresh.type = 'button';
@@ -107,16 +113,26 @@
     refresh.textContent = '刷新';
     refresh.style.cssText = [
       'cursor:pointer',
-      'border:1px solid var(--color-token-border, rgba(0,0,0,.12))',
+      'border:0',
       'background:transparent',
-      'color:inherit',
-      'border-radius:7px',
-      'padding:2px 10px',
+      'color:var(--color-token-text-primary, #1a1c1f)',
+      'border-radius:7.5px',
+      'min-height:24px',
+      'margin:-3px -4px',
+      'padding:3px 8px',
+      'font-family:inherit',
       'font-size:12px',
       'font-weight:400',
-      'font-family:inherit',
-      'line-height:1.5'
+      'line-height:18px',
+      'transition:background-color .1s ease'
     ].join(';');
+    function setRefreshHover(active) {
+      refresh.style.background = active ? 'color-mix(in srgb, var(--color-token-text-primary, #1a1c1f) 7%, transparent)' : 'transparent';
+    }
+    refresh.addEventListener('mouseenter', function () { setRefreshHover(true); });
+    refresh.addEventListener('mouseleave', function () { setRefreshHover(false); });
+    refresh.addEventListener('focus', function () { setRefreshHover(true); });
+    refresh.addEventListener('blur', function () { setRefreshHover(false); });
     refresh.addEventListener('click', function (event) {
       event.preventDefault();
       event.stopPropagation();
@@ -167,7 +183,7 @@
     if (src) {
       var note = document.createElement('div');
       note.textContent = '来源：' + src + (data.currency ? '（' + data.currency + '）' : '');
-      note.style.cssText = 'margin-top:6px;font-size:12px;font-weight:400;font-family:inherit;color:var(--color-token-text-secondary, rgba(0,0,0,.55));';
+      note.style.cssText = 'margin:0 4px;padding:0 16px 6px;font-family:inherit;font-size:12px;font-weight:400;line-height:18px;color:var(--color-token-text-secondary, rgba(0,0,0,.55));';
       body.append(note);
     }
 
@@ -177,7 +193,7 @@
   function positionPanel() {
     if (!STATE.btn || !STATE.panel) return;
     var rect = STATE.btn.getBoundingClientRect();
-    var width = STATE.panel.offsetWidth || 212;
+    var width = STATE.panel.offsetWidth || 220;
     var left = Math.min(rect.left, Math.max(8, window.innerWidth - width - 8));
     STATE.panel.style.left = Math.round(left) + 'px';
     STATE.panel.style.top = Math.round(rect.bottom + 6) + 'px';
@@ -187,6 +203,7 @@
     if (STATE.panel && STATE.panel.parentNode) STATE.panel.parentNode.removeChild(STATE.panel);
     STATE.panel = null;
     STATE.open = false;
+    setButtonState(false);
     document.removeEventListener('mousedown', onDocMouseDown, true);
     window.removeEventListener('resize', positionPanel, true);
   }
@@ -198,11 +215,105 @@
     closePanel();
   }
 
+  function setButtonState(open) {
+    if (!STATE.btn) return;
+    STATE.btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    STATE.btn.setAttribute('data-state', open ? 'open' : 'closed');
+  }
+
+  function menubarItem(node) {
+    var element = node && node.nodeType === 1 ? node : node && node.parentElement;
+    if (!element || !element.closest) return null;
+    var item = element.closest('button[role=menuitem]');
+    return item && item.closest('[role=menubar]') ? item : null;
+  }
+
+  function reactProps(node) {
+    if (!node) return null;
+    var key = Object.keys(node).find(function (name) {
+      return name.indexOf('__reactProps$') === 0;
+    });
+    return key ? node[key] : null;
+  }
+
+  function openMenuItem(item) {
+    if (!item) return false;
+    var props = reactProps(item);
+    if (!props || typeof props.onPointerDown !== 'function') return false;
+    props.onPointerDown({
+      defaultPrevented: false,
+      currentTarget: item,
+      target: item,
+      button: 0,
+      buttons: 1,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      altKey: false,
+      pointerType: 'mouse',
+      isPrimary: true,
+      preventDefault: function () { this.defaultPrevented = true; },
+      stopPropagation: function () {}
+    });
+    return true;
+  }
+
+  function openNativeItem() {
+    return Array.from(document.querySelectorAll('[role=menubar] button[role=menuitem][aria-expanded=true]'))
+      .find(function (item) { return item !== STATE.btn; }) || null;
+  }
+
+  function closeNativeMenus() {
+    var item = openNativeItem();
+    return item ? openMenuItem(item) : false;
+  }
+
+  function onMenuPointerOver(event) {
+    var item = menubarItem(event.target);
+    if (!item) return;
+
+    if (item === STATE.btn) {
+      if (STATE.open || !openNativeItem()) return;
+      closeNativeMenus();
+      openPanel();
+      return;
+    }
+
+    if (!STATE.open) return;
+    closePanel();
+    openMenuItem(item);
+  }
+
+  function closeForOtherMenu(event) {
+    if (!STATE.open) return;
+    var item = menubarItem(event.target);
+    if (!item || item === STATE.btn) return;
+    closePanel();
+  }
+
+  var MENU_GUARD = window.__dsUsageMenuGuard;
+  if (!MENU_GUARD) {
+    MENU_GUARD = { pointerOver: null, close: null };
+    window.__dsUsageMenuGuard = MENU_GUARD;
+    var runMenuPointerOver = function (event) {
+      if (MENU_GUARD.pointerOver) MENU_GUARD.pointerOver(event);
+    };
+    var runMenuGuard = function (event) {
+      if (MENU_GUARD.close) MENU_GUARD.close(event);
+    };
+    document.addEventListener('pointerover', runMenuPointerOver, true);
+    document.addEventListener('focusin', runMenuGuard, true);
+    document.addEventListener('click', runMenuGuard, true);
+  }
+  MENU_GUARD.pointerOver = onMenuPointerOver;
+  MENU_GUARD.close = closeForOtherMenu;
+
   function openPanel() {
     if (STATE.open) return;
     STATE.panel = buildPanel();
     document.body.append(STATE.panel);
     STATE.open = true;
+    setButtonState(true);
     positionPanel();
     render();
     document.addEventListener('mousedown', onDocMouseDown, true);
@@ -226,7 +337,14 @@
   function ensureButton() {
     var bar = document.querySelector('[role=menubar]');
     if (!bar) return;
-    if (bar.querySelector('#' + BTN_ID)) { STATE.btn = bar.querySelector('#' + BTN_ID); return; }
+    var existing = bar.querySelector('#' + BTN_ID);
+    if (existing) {
+      if (existing.getAttribute('data-ds-usage-version') === VERSION) {
+        STATE.btn = existing;
+        return;
+      }
+      existing.parentNode.removeChild(existing);
+    }
 
     var siblings = bar.querySelectorAll('button[role=menuitem]');
     var template = siblings.length ? siblings[0] : null;
@@ -235,9 +353,12 @@
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.id = BTN_ID;
+    btn.setAttribute('data-ds-usage-version', VERSION);
     btn.setAttribute('role', 'menuitem');
     btn.setAttribute('aria-haspopup', 'menu');
     btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('data-state', 'closed');
+    btn.setAttribute('aria-label', '消耗');
     btn.textContent = '消耗';
     if (template && template.className) btn.className = template.className;
     else btn.style.cssText = 'padding:2px 10px;border-radius:10px;border:1px solid transparent;background:transparent;cursor:pointer;';
@@ -245,6 +366,7 @@
     btn.addEventListener('click', function (event) {
       event.preventDefault();
       event.stopPropagation();
+      closeNativeMenus();
       togglePanel();
     });
 

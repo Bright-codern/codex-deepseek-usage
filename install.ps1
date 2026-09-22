@@ -91,19 +91,22 @@ if (Test-Path $codexConfig) {
   [System.IO.File]::WriteAllText($codexConfig, $mcpBlock + "`r`n", (New-Object System.Text.UTF8Encoding($false)))
   Write-Host '已创建 Codex 配置并注册 MCP 项'
 }
-# 立即启动
-$alreadyRunning = $false
-try {
-  $probe = New-Object System.Threading.Mutex($false, 'CodexPlusPlusDeepSeekUsageHelper')
-  if (-not $probe.WaitOne(0)) { $alreadyRunning = $true } else { $probe.ReleaseMutex() }
-  $probe.Dispose()
-} catch {}
-if ($alreadyRunning) {
-  Write-Host '助手已在运行'
-} else {
-  Start-Process -FilePath 'wscript.exe' -ArgumentList ('"' + $Vbs + '"') -WindowStyle Hidden
-  Write-Host '助手已启动'
+# 升级时先结束旧助手，避免它继续向页面注入上一版界面脚本
+$helperPath = Join-Path $Target 'deepseek-usage-helper.ps1'
+$oldHelpers = @(Get-CimInstance Win32_Process | Where-Object {
+  $_.Name -in @('powershell.exe', 'pwsh.exe') -and $_.CommandLine -like ('*' + $helperPath + '*')
+})
+foreach ($oldHelper in $oldHelpers) {
+  Stop-Process -Id $oldHelper.ProcessId -Force -ErrorAction SilentlyContinue
 }
+if ($oldHelpers.Count -gt 0) {
+  Start-Sleep -Milliseconds 600
+  Write-Host '已结束旧助手进程'
+}
+
+# 立即启动新版助手
+Start-Process -FilePath 'wscript.exe' -ArgumentList ('"' + $Vbs + '"') -WindowStyle Hidden
+Write-Host '助手已启动'
 
 Write-Host ''
 Write-Host '安装完成。回到 Codex 顶部菜单栏点击「消耗」即可查看。' -ForegroundColor Green
