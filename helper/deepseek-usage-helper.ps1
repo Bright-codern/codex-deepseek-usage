@@ -11,7 +11,6 @@ if (-not $Once) {
 
 $Root = Join-Path $env:APPDATA 'Codex++\deepseek-usage'
 $ConfigPath = Join-Path $Root 'config.json'
-$StatePath = Join-Path $Root 'state.json'
 $LastPayloadPath = Join-Path $Root 'last-payload.json'
 $LogPath = Join-Path $Root 'helper.log'
 
@@ -33,7 +32,6 @@ function Get-Config {
     refreshSeconds = 360
     pollSeconds = 2
     apiKey = ''
-    platformToken = ''
     uiScript = ''
   }
   $cfg = $null
@@ -75,36 +73,43 @@ function Get-Balance($apiKey) {
   }
 }
 
-function Get-PlatformTokenFromChrome {
-  $found = $null
-  $roots = @(
-    (Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data'),
-    (Join-Path $env:LOCALAPPDATA 'Google\Chrome Beta\User Data'),
-    (Join-Path $env:LOCALAPPDATA 'Microsoft\Edge\User Data')
+function Get-BrowserStorageDirs {
+  # 凭证只从 Codex 内置浏览器读取：它是 Electron 分区，
+  # Local Storage 位于 <userData>\<profile>\Partitions\<分区>\Local Storage\leveldb。
+  # 不扫描 Chrome / Edge：Chrome 136+ 禁止对默认配置目录开调试端口，
+  # Cookie 又是 app-bound 加密，外部拿不到可用的登录态。
+  $dirs = @()
+  $patterns = @(
+    (Join-Path $env:APPDATA 'Codex\web\Codex\*\Partitions\*\Local Storage\leveldb'),
+    (Join-Path $env:APPDATA 'Codex\web\*\*\Partitions\*\Local Storage\leveldb'),
+    (Join-Path $env:LOCALAPPDATA 'Packages\OpenAI.Codex_*\LocalCache\Roaming\Codex\web\*\Partitions\*\Local Storage\leveldb')
   )
-  foreach ($root in $roots) {
-    if (-not (Test-Path $root)) { continue }
-    $profiles = Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'Default' -or $_.Name -like 'Profile*' }
-    foreach ($profile in $profiles) {
-      $ls = Join-Path $profile.FullName 'Local Storage\leveldb'
-      if (-not (Test-Path $ls)) { continue }
-      $files = Get-ChildItem -LiteralPath $ls -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in '.log', '.ldb' } | Sort-Object LastWriteTime
-      foreach ($f in $files) {
-        $bytes = $null
-        try {
-          $fs = New-Object System.IO.FileStream($f.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
-          $ms = New-Object System.IO.MemoryStream
-          $fs.CopyTo($ms)
-          $fs.Close()
-          $bytes = $ms.ToArray()
-          $ms.Close()
-        } catch { continue }
-        if (-not $bytes -or $bytes.Length -eq 0) { continue }
-        foreach ($text in @([System.Text.Encoding]::UTF8.GetString($bytes), [System.Text.Encoding]::Unicode.GetString($bytes))) {
-          foreach ($m in [regex]::Matches($text, 'userToken[^{]{0,10}\{"value":"((?:[^"\\]|\\.)*)"')) {
-            $candidate = $m.Groups[1].Value
-            if ($candidate.Length -ge 20) { $found = $candidate }
-          }
+  foreach ($pattern in $patterns) {
+    foreach ($item in @(Get-Item -Path $pattern -ErrorAction SilentlyContinue)) { $dirs += $item.FullName }
+  }
+  return ($dirs | Select-Object -Unique)
+}
+
+function Get-PlatformTokenFromBrowser {
+  $found = $null
+  foreach ($ls in (Get-BrowserStorageDirs)) {
+    if (-not (Test-Path -LiteralPath $ls)) { continue }
+    $files = Get-ChildItem -LiteralPath $ls -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in '.log', '.ldb' } | Sort-Object LastWriteTime
+    foreach ($f in $files) {
+      $bytes = $null
+      try {
+        $fs = New-Object System.IO.FileStream($f.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        $ms = New-Object System.IO.MemoryStream
+        $fs.CopyTo($ms)
+        $fs.Close()
+        $bytes = $ms.ToArray()
+        $ms.Close()
+      } catch { continue }
+      if (-not $bytes -or $bytes.Length -eq 0) { continue }
+      foreach ($text in @([System.Text.Encoding]::UTF8.GetString($bytes), [System.Text.Encoding]::Unicode.GetString($bytes))) {
+        foreach ($m in [regex]::Matches($text, 'userToken[^{]{0,10}\{"value":"((?:[^"\\]|\\.)*)"')) {
+          $candidate = $m.Groups[1].Value
+          if ($candidate.Length -ge 20) { $found = $candidate }
         }
       }
     }
@@ -148,40 +153,6 @@ function Get-PlatformTodaySpend($token) {
     }
   }
   return [ordered]@{ cost = $sum; currency = $currency }
-}
-
-function Get-State {
-  if (Test-Path $StatePath) {
-    try { return (Get-Content -LiteralPath $StatePath -Raw | ConvertFrom-Json) } catch {}
-  }
-  return $null
-}
-
-function Save-State($state) {
-  try { $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $StatePath -Encoding UTF8 } catch {}
-}
-
-function Update-BalanceDelta($state, [double]$balance, [string]$today) {
-  $nowSec = [long][DateTimeOffset]::new((Get-Date)).ToUnixTimeSeconds()
-  $reliable = $false
-  if (-not $state -or -not $state.day) {
-    $state = [ordered]@{ day = $today; dayStartBalance = $balance; dayStartReliable = $false; lastBalance = $balance; lastSampleAt = $nowSec; topUp = 0.0 }
-    $reliable = $false
-  } elseif ($state.day -ne $today) {
-    $gap = $nowSec - [long]$state.lastSampleAt
-    $reliable = ($gap -le 900)
-    $state = [ordered]@{ day = $today; dayStartBalance = [double]$state.lastBalance; dayStartReliable = $reliable; lastBalance = $balance; lastSampleAt = $nowSec; topUp = 0.0 }
-  } else {
-    $prev = [double]$state.lastBalance
-    if ($balance -gt $prev + 1e-9) { $state.topUp = [double]$state.topUp + ($balance - $prev) }
-    $state.lastBalance = $balance
-    $state.lastSampleAt = $nowSec
-    $reliable = [bool]$state.dayStartReliable
-  }
-  $spend = [double]$state.dayStartBalance + [double]$state.topUp - $balance
-  if ($spend -lt 0) { $spend = 0.0 }
-  Save-State $state
-  return [ordered]@{ cost = $spend; reliable = $reliable }
 }
 
 # ---------- CDP (short-lived connections: the app drops idle sessions) ----------
@@ -241,7 +212,7 @@ $cfg = Get-Config
 $apiKey = Get-ApiKey $cfg
 $uiPath = $cfg.uiScript
 if (-not $uiPath) { $uiPath = Join-Path $env:APPDATA 'Codex++\user_scripts\deepseek-usage-panel.js' }
-$script:ChromeToken = $null
+$script:PlatformToken = $null
 
 $uiSource = ''
 if (Test-Path $uiPath) {
@@ -276,7 +247,7 @@ function Collect {
     grantedBalance = $null
     todaySpend = $null
     todaySpendSource = $null
-    todaySpendLowerBound = $false
+    todaySpendUnavailable = $null
     updatedAt = [long][DateTimeOffset]::new((Get-Date)).ToUnixTimeMilliseconds()
     error = $null
   }
@@ -290,29 +261,33 @@ function Collect {
     $payload.toppedUpBalance = [Math]::Round($balance.toppedUp, 2)
     $payload.grantedBalance = [Math]::Round($balance.granted, 2)
 
-    $today = (Get-Date).ToString('yyyy-MM-dd')
     $platform = $null
-    $token = [string]$cfg.platformToken
-    if (-not $token) {
-      if (-not $script:ChromeToken) {
-        $script:ChromeToken = Get-PlatformTokenFromChrome
-        if ($script:ChromeToken) { Write-Log 'platform token read from browser profile' }
-      }
-      if ($script:ChromeToken) { $token = [string]$script:ChromeToken }
+    $unavailable = ''
+    if (-not $script:PlatformToken) {
+      $script:PlatformToken = Get-PlatformTokenFromBrowser
+      if ($script:PlatformToken) { Write-Log 'platform token read from codex browser storage' }
     }
-    if ($token) {
+    if ($script:PlatformToken) {
+      $token = [string]$script:PlatformToken
       try { $platform = Get-PlatformTodaySpend $token }
       catch {
         Write-Log "platform usage failed: $($_.Exception.Message)"
-        if (-not $cfg.platformToken) {
-          $script:ChromeToken = $null
-          $fresh = Get-PlatformTokenFromChrome
-          if ($fresh -and $fresh -ne $token) {
-            $script:ChromeToken = $fresh
-            try { $platform = Get-PlatformTodaySpend $fresh } catch { Write-Log "platform retry failed: $($_.Exception.Message)" }
+        $unavailable = '登录态过期，请在 Codex 内置浏览器重新登录'
+        # 网页版可能刚刷新过登录态，重新读一次再试。
+        $script:PlatformToken = Get-PlatformTokenFromBrowser
+        if ($script:PlatformToken -and ([string]$script:PlatformToken) -ne $token) {
+          try {
+            $platform = Get-PlatformTodaySpend ([string]$script:PlatformToken)
+            $unavailable = ''
+          } catch {
+            Write-Log "platform retry failed: $($_.Exception.Message)"
           }
         }
       }
+    } else {
+      # 今日消费只认 DeepSeek 网页接口的精确值，取不到就明说，不做余额差值估算。
+      $unavailable = '请先在 Codex 内置浏览器登录 DeepSeek'
+      Write-Log 'today spend unavailable: no platform token in codex browser storage'
     }
     if ($platform) {
       $payload.todaySpend = [Math]::Round([double]$platform.cost, 2)
@@ -322,10 +297,7 @@ function Collect {
         if ($platform.currency -eq 'USD') { $payload.symbol = '$' } else { $payload.symbol = '¥' }
       }
     } else {
-      $delta = Update-BalanceDelta (Get-State) $balance.total $today
-      $payload.todaySpend = [Math]::Round([double]$delta.cost, 2)
-      $payload.todaySpendSource = 'balance'
-      if (-not [bool]$delta.reliable) { $payload.todaySpendLowerBound = $true }
+      $payload.todaySpendUnavailable = $unavailable
     }
   } catch {
     $payload.ok = $false

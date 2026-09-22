@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         DeepSeek 消耗
 // @description  在 Codex 顶部菜单栏加一个「消耗」按钮，显示 DeepSeek 充值余额与今日消费
-// @version      1.0.10
+// @version      1.0.12
 // @match        app://-/*
 // @grant        none
 // ==/UserScript==
@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.0.10';
+  var VERSION = '1.0.12';
   if (window.__dsUsageUIVersion === VERSION) return;
   window.__dsUsageUIVersion = VERSION;
 
@@ -173,6 +173,13 @@
     rows.push(row('今日消费', money(data.todaySpend, symbol)));
 
     rows.forEach(function (r) { body.append(r); });
+
+    if (data.todaySpend === null || data.todaySpend === undefined) {
+      var note = document.createElement('div');
+      note.textContent = data.todaySpendUnavailable || '精确值暂不可用';
+      note.style.cssText = 'color:' + TEXT_SECONDARY + ';margin:0 4px;padding:2px 16px 4px;font-size:11px;line-height:16px;';
+      body.append(note);
+    }
 
     stamp.textContent = data.updatedAt ? '同步于 ' + timeText(data.updatedAt) : '未同步';
   }

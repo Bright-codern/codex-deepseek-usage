@@ -3,6 +3,5 @@
   "refreshSeconds": 360,
   "pollSeconds": 2,
   "apiKey": "",
-  "platformToken": "",
   "uiScript": ""
 }

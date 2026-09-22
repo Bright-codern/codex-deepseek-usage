@@ -112,6 +112,10 @@ Write-Host ''
 Write-Host '安装完成。回到 Codex 顶部菜单栏点击「消耗」即可查看。' -ForegroundColor Green
 Write-Host '请重启一次 Codex：插件界面和后台助手都随 Codex 启动，不再随系统开机自启。'
 Write-Host '（本次安装已手动拉起助手，方便马上验证数据。）'
+Write-Host ''
+Write-Host '今日消费需要在 Codex 内置浏览器里登录一次 DeepSeek 网页版：' -ForegroundColor Yellow
+Write-Host '打开 https://platform.deepseek.com 扫码登录，否则卡片上的今日消费只会显示 —。' -ForegroundColor Yellow
+Write-Host '（插件只从内置浏览器读取登录态；本项目不做任何估算。）'
 
 
 

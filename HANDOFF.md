@@ -1,8 +1,8 @@
 # Codex++ DeepSeek 消耗：维护与交接文档
 
-> 交接状态：当前版本 `1.0.10`，已安装并验证；仓库工作区干净，`main` 与 GitHub 远端同步。  
+> 交接状态：当前版本 `1.0.12`（今日消费只取精确值，凭证只来自 Codex 内置浏览器）；仓库工作区干净，`main` 与 GitHub 远端同步。  
 > 仓库：<https://github.com/Bright-codern/codex-deepseek-usage>  
-> 平台：Windows 10 / 11。当前仅在 Codex 桌面端 + Codex++ + Chrome 登录 DeepSeek 网页版的组合上验证。
+> 平台：Windows 10 / 11。当前仅在 Codex 桌面端 + Codex++ 的组合上验证；「今日消费」的登录态只从 Codex 内置浏览器读取。
 
 ## 1. 项目目标
 
@@ -60,7 +60,7 @@ Codex++ / Codex 启动
 | 文件 | 职责 |
 |---|---|
 | `deepseek-usage-panel.js` | Codex 页面用户脚本：插入菜单按钮、渲染卡片、菜单悬停桥接、刷新请求。 |
-| `helper/deepseek-usage-helper.ps1` | 后台数据助手：读配置、取余额、取今日消费、写状态、通过 CDP 推送数据。 |
+| `helper/deepseek-usage-helper.ps1` | 后台数据助手：读配置、取余额、取今日消费、通过 CDP 推送数据。 |
 | `helper/mcp-launcher.ps1` | MCP 启动器：Codex 启动时拉起助手，Codex 退出时回收子进程。 |
 | `helper/start-hidden.vbs` | 无窗口手动启动助手的调试入口。 |
 | `install.ps1` | 复制文件、注册用户脚本、写入 MCP 配置、备份配置、重启旧助手。 |
@@ -79,7 +79,6 @@ Codex++ / Codex 启动
 | 助手脚本 | `%APPDATA%\Codex++\deepseek-usage\deepseek-usage-helper.ps1` |
 | MCP 启动器 | `%APPDATA%\Codex++\deepseek-usage\mcp-launcher.ps1` |
 | 配置 | `%APPDATA%\Codex++\deepseek-usage\config.json` |
-| 余额差值状态 | `%APPDATA%\Codex++\deepseek-usage\state.json` |
 | 最近一次数据 | `%APPDATA%\Codex++\deepseek-usage\last-payload.json` |
 | 助手日志 | `%APPDATA%\Codex++\deepseek-usage\helper.log` |
 | 启动器日志 | `%APPDATA%\Codex++\deepseek-usage\launcher.log` |
@@ -97,7 +96,7 @@ Codex++ / Codex 启动
 5. 助手通过 CDP 轮询主窗口：
    - 如果页面没有当前版本 UI，则注入 `deepseek-usage-panel.js`。
    - 读取并清除 `window.__dsUsageRefreshFlag`。
-6. 首次启动、到达刷新周期或用户点击「刷新」时，助手执行取数。
+6. 首次启动、到达刷新周期或用户点击「刷新」时，助手执行取数（「今日消费」的 `userToken` 从 Codex 内置浏览器存储里读取）。
 7. 助手通过 `window.__dsUsageApply(payload)` 把数据推送给页面。
 8. 卡片只在打开状态渲染数据；关闭后数据仍保存在 `window.__DSUsage`。
 9. Codex 退出后，MCP 启动器结束助手进程。
@@ -151,16 +150,17 @@ Codex 当前的原生菜单由 React/Radix 管理。为了从卡片首次切入�
 优先使用 DeepSeek 网页版接口：
 
 - API：`https://platform.deepseek.com/api/v0/usage/by_api_key/cost`
-- 凭证：优先使用 `config.json` 中的 `platformToken`；未配置时从 Chrome / Chrome Beta / Edge 的 Local Storage LevelDB 中读取 `userToken`。
+- 凭证：只从 **Codex 内置浏览器** 的 Local Storage LevelDB 里读 `userToken`，取最后一个匹配值，路径为
+  `%APPDATA%\Codex\web\Codex\<profile>\Partitions\<partition>\Local Storage\leveldb`（同时兼容 `%LOCALAPPDATA%\Packages\OpenAI.Codex_*\LocalCache\Roaming\...` 形式）。
+- 不读取 Chrome / Chrome Beta / Edge，也不再支持 `config.json` 的 `platformToken`：Chrome 136+ 禁止对默认配置目录开启调试端口，Cookie 又是 app-bound 加密，外部拿不到可用登录态；内置浏览器就在 Codex 进程里，登录态持久且读取最直接。
 - 统计方式：当天各模型、各小时 `cost` 求和。
 - 时间范围基于系统本地时区计算。README 中的“北京时间”表述只适用于系统时区为中国时区的用户。
 
-失败回退：
+取不到凭证或接口失败时：
 
-- 如果网页版登录态失效或接口变化，助手使用余额差值估算。
-- 计算公式：`当日首次余额 + 当日充值 - 当前余额`。
-- 结果可能偏小，首次运行或助手未全天运行时可靠性较低。
-- `todaySpendSource` 和 `todaySpendLowerBound` 仍保留在 payload 中，但当前 UI 不展示来源行。
+- **不做估算**。助手把 `todaySpend` 置为 `null`，并在 `todaySpendUnavailable` 里写明原因（`请先在 Codex 内置浏览器登录 DeepSeek` / `登录态过期，请在 Codex 内置浏览器重新登录`）。
+- 界面在数字位置显示 `—`，并在下方显示该原因；`todaySpendSource` 只在取到精确值时为 `platform`。
+- 因此卡片上的「今日消费」要么是精确值，要么是 `—`，不会出现估算值。
 
 ### Payload 主要字段
 
@@ -174,7 +174,7 @@ Codex 当前的原生菜单由 React/Radix 管理。为了从卡片首次切入�
   "grantedBalance": 0.0,
   "todaySpend": 0.0,
   "todaySpendSource": "platform",
-  "todaySpendLowerBound": false,
+  "todaySpendUnavailable": null,
   "updatedAt": 0,
   "error": null
 }
@@ -195,6 +195,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 - 将 MCP 启动器写入 `~/.codex/config.toml`。
 - 保留已有 `config.json`。
 - 结束旧助手并启动新版助手。
+- 提示首次使用需在 Codex 内置浏览器登录 DeepSeek 网页版（否则「今日消费」显示 `—`）。
 - 对修改过的配置做 `.bak` 备份。
 
 ### 升级
@@ -264,7 +265,7 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 - 卡片只显示余额、今日消费、同步时间和刷新，不显示来源行。
 - 点击「刷新」后助手日志出现 `refresh requested from panel`。
 - 余额与网页版数据口径一致。
-- 网页版 token 失效时能回退到余额差值。
+- 网页版登录态失效时，「今日消费」显示 `—` 并提示重新登录（不再估算）。
 - 暗色主题和亮色主题均可正常显示。
 - `install.ps1` 和 `uninstall.ps1` 可重复执行。
 
@@ -273,9 +274,10 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 - 原生菜单桥接依赖 React 内部属性 `__reactProps$...` 和 Radix 行为，Codex 升级后可能失效。
 - 原生按钮 ID、`[role=menubar]` 和菜单 DOM 结构属于内部实现，不是公开稳定 API。
 - 今日消费使用 DeepSeek 网页版内部接口，DeepSeek 改版后可能失效。
-- 从 Chrome LevelDB 读取 `userToken` 依赖当前存储格式，Chrome 改版后可能失效。
-- 余额差值回退不是精确的账单数据；首次运行和助手未全天运行时可能明显偏小。
-- `mcp-launcher.ps1` 中的 MCP `serverInfo.version` 仍是 `1.1.0`，与 UI `1.0.10` 独立；如需统一版本体系，应另行整理。
+- 从 Codex 内置浏览器 LevelDB 读取 `userToken` 依赖当前的存储格式与 `userToken` 键名，Codex 或 DeepSeek 改版后可能失效；失效时卡片会显示 `—` 并提示重新登录。
+- 登录态只认 Codex 内置浏览器：用户在 Chrome / Edge 里的 DeepSeek 登录态不会生效。
+- 因为不做估算，未登录或登录态失效时「今日消费」没有数字可看；这是有意的取舍。
+- `mcp-launcher.ps1` 中的 MCP `serverInfo.version` 仍是 `1.1.0`，与 UI `1.0.11` 独立；如需统一版本体系，应另行整理。
 - `mcp-launcher.ps1` 仍有未使用的 `BridgePath` 和注释遗留，不影响当前运行，但可以清理。
 - 当前只验证 Windows，未处理 macOS 路径、凭证存储和进程生命周期差异。
 
@@ -288,6 +290,7 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 | `e24a66b` | README 补充相对原版的更新说明。 |
 | `daff01e` | 修正卡片文字颜色，主色 `100%`、辅助色 `75%`。 |
 | `e0f9f29` | 移除来源说明行，更新截图，发布 `1.0.10`。 |
+| `v1.0.12` | 「今日消费」凭证只从 Codex 内置浏览器读取：移除 Chrome / Edge 扫描、`platformToken` 配置项和余额差值估算；安装时提示登录。 |
 
 ## 14. 后续维护建议
 
