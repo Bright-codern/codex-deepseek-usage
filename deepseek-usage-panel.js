@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         DeepSeek 消耗
 // @description  在 Codex 顶部菜单栏加一个「消耗」按钮，显示 DeepSeek 充值余额与今日消费
-// @version      1.0.9
+// @version      1.0.10
 // @match        app://-/*
 // @grant        none
 // ==/UserScript==
@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.0.9';
+  var VERSION = '1.0.10';
   if (window.__dsUsageUIVersion === VERSION) return;
   window.__dsUsageUIVersion = VERSION;
 
@@ -37,13 +37,6 @@
     var d = new Date(ts);
     function p(x) { return (x < 10 ? '0' : '') + x; }
     return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
-  }
-
-  function sourceText(data) {
-    if (!data) return '';
-    if (data.todaySpendSource === 'platform') return '官网账单';
-    if (data.todaySpendSource === 'balance') return data.todaySpendLowerBound ? '余额差值（下限）' : '余额差值';
-    return '';
   }
 
   function row(label, value, extraClass) {
@@ -180,14 +173,6 @@
     rows.push(row('今日消费', money(data.todaySpend, symbol)));
 
     rows.forEach(function (r) { body.append(r); });
-
-    var src = sourceText(data);
-    if (src) {
-      var note = document.createElement('div');
-      note.textContent = '来源：' + src + (data.currency ? '（' + data.currency + '）' : '');
-      note.style.cssText = 'margin:0 4px;padding:0 16px 6px;font-family:inherit;font-size:12px;font-weight:400;line-height:18px;color:' + TEXT_SECONDARY + ';';
-      body.append(note);
-    }
 
     stamp.textContent = data.updatedAt ? '同步于 ' + timeText(data.updatedAt) : '未同步';
   }
