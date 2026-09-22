@@ -8,7 +8,7 @@
 
 ![效果](docs/screenshot.png)
 
-点开就是这样一张小卡片：只有两行数字、一个数据来源、一个刷新按钮。不点刷新的话每 360 秒自动同步一次。
+点开就是这样一张小卡片：只有两行数字、同步时间和刷新按钮。不点刷新的话每 360 秒自动同步一次。
 
 > 官网那个「账户总额」= 充值余额 + 赠送额度。只充过值的时候两者是同一个数，摆两遍没有意义，所以没有列出来。
 
@@ -145,6 +145,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
 
 ```
 deepseek-usage-panel.js        注入 Codex 页面的用户脚本（菜单栏按钮 + 卡片）
+HANDOFF.md                     维护与交接文档
 config.example.json            默认配置
 install.ps1 / uninstall.ps1    安装 / 卸载
 helper/
@@ -154,6 +155,10 @@ helper/
 docs/
   screenshot.png
 ```
+
+## 维护与交接
+
+架构、约定、调试流程、升级步骤和已知风险见 [HANDOFF.md](HANDOFF.md)。
 
 ## 许可
 
